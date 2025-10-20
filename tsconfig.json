@@ -1,6 +1,20 @@
 {
-  "extends": "expo/tsconfig.base",
-  "compilerOptions": {
-    "strict": true
-  }
+	"compilerOptions": {
+		"target": "ES2020",
+		"lib": ["ES2020"],
+		"jsx": "react-jsx",
+		"moduleResolution": "Bundler",
+		"strict": true,
+		"skipLibCheck": true,
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"],
+			"app/*": ["./app/*"]
+		},
+		"types": ["react", "react-native", "expo-router"],
+		"resolveJsonModule": true,
+		"noEmit": true
+	},
+	"include": ["app", "src", "App.tsx", "index.ts", "index.tsx"],
+	"extends": "expo/tsconfig.base"
 }
