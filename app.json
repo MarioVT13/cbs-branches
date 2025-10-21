@@ -26,7 +26,9 @@
 			"edgeToEdgeEnabled": true,
 			"predictiveBackGestureEnabled": false,
 			"package": "com.eyecu13.cbsbranches",
-			"config": { "googleMaps": { "apiKey": "AIzaSyAG_HB37TPNUjGxydaOQqp-HT45wjCcxUk" } }
+			"config": {
+				"googleMaps": { "apiKey": "This is where the Google Maps API key would go." }
+			}
 		},
 		"web": {
 			"favicon": "./assets/favicon.png"
