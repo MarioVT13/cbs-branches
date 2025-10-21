@@ -9,6 +9,8 @@ import { useDebounce } from '@/hooks/useDebounce';
 import BranchListItem from '@/components/BranchListItem';
 import Loading from '@/components/Loading';
 import ErrorView from '@/components/ErrorView';
+import { color } from '@/theme/Theme';
+import { errorLoadingBranches } from '@/errors/Errors';
 
 export default function BranchListScreen() {
 	const { data, isLoading, isError, error, refetch } = useQuery({
@@ -47,6 +49,7 @@ export default function BranchListScreen() {
 			<View style={styles.searchBox}>
 				<TextInput
 					placeholder="Search by name, city, address"
+					placeholderTextColor={color.deepGray}
 					value={searchQuery}
 					onChangeText={setSearchQuery}
 					style={styles.searchInput}
@@ -68,7 +71,7 @@ export default function BranchListScreen() {
 			/>
 			{(!filtered || filtered.length === 0) && (
 				<View style={styles.noResultTextContainer}>
-					<Text style={styles.noResultText}>No branches match your search.</Text>
+					<Text style={styles.noResultText}>{errorLoadingBranches}</Text>
 				</View>
 			)}
 		</SafeAreaView>
@@ -76,9 +79,15 @@ export default function BranchListScreen() {
 }
 
 const styles = StyleSheet.create({
-	parentContainer: { flex: 1, backgroundColor: '#FFF' },
+	parentContainer: { flex: 1, backgroundColor: color.lightRust },
 	searchBox: { paddingHorizontal: 12, paddingTop: 12 },
-	searchInput: { borderWidth: 1, borderRadius: 8, padding: 10, backgroundColor: '#FFFFE0' },
+	searchInput: {
+		borderWidth: 0.5,
+		borderColor: color.copper,
+		borderRadius: 8,
+		padding: 10,
+		backgroundColor: color.lightYellow,
+	},
 	noResultTextContainer: { position: 'absolute', marginTop: '50%', alignSelf: 'center' },
-	noResultText: { fontSize: 15 },
+	noResultText: { fontSize: 15, color: color.antiqueBronze },
 });

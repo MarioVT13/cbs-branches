@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Text, StyleSheet, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
 import { Branch } from '@/api/schemas';
+import { color } from '@/theme/Theme';
 
 type Props = { branch: Branch } & PressableProps;
 
@@ -25,9 +26,10 @@ const styles = StyleSheet.create({
 	card: {
 		padding: 14,
 		borderRadius: 12,
-		borderWidth: 1,
+		borderWidth: 0.5,
 		marginBottom: 10,
-		backgroundColor: '#E6F7FF',
+		backgroundColor: color.lightblue,
+		borderColor: color.blue,
 	},
 	title: { fontSize: 16, fontWeight: '600' },
 	sub: { marginTop: 4, opacity: 0.8 },

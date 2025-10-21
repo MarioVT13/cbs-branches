@@ -9,6 +9,8 @@ import { fetchATMs } from '@/api/atms';
 import * as Linking from 'expo-linking';
 import Loading from '@/components/Loading';
 import ErrorView from '@/components/ErrorView';
+import { color } from '@/theme/Theme';
+import { ATMsErr } from '@/errors/Errors';
 
 export default function BranchDetailsScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,7 +53,7 @@ export default function BranchDetailsScreen() {
 	);
 
 	return (
-		<SafeAreaView style={{ flex: 1 }}>
+		<SafeAreaView style={styles.parentContainer}>
 			<View style={styles.info}>
 				<Text style={styles.title}>{branch.name}</Text>
 				{!!branch.address && <Text>{branch.address}</Text>}
@@ -84,13 +86,17 @@ export default function BranchDetailsScreen() {
 					<Text>Show ATMs</Text>
 					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
 						{showATMs && atmsQuery.isFetching ? <ActivityIndicator /> : null}
-						<Switch value={showATMs} onValueChange={setShowATMs} />
+						<Switch
+							value={showATMs}
+							onValueChange={setShowATMs}
+							trackColor={{ false: color.red, true: color.green }}
+							thumbColor={color.deepGray}
+							ios_backgroundColor={color.red}
+						/>
 					</View>
 				</View>
 
-				{showATMs && atmsQuery.isError ? (
-					<Text style={styles.error}>Failed to load ATMs.</Text>
-				) : null}
+				{showATMs && atmsQuery.isError ? <Text style={styles.error}>{ATMsErr}</Text> : null}
 			</View>
 
 			<MapView style={{ flex: 1 }} initialRegion={region}>
@@ -112,6 +118,10 @@ export default function BranchDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+	parentContainer: {
+		flex: 1,
+		backgroundColor: color.lightYellow,
+	},
 	info: { padding: 12, gap: 6 },
 	title: { fontSize: 18, fontWeight: '600' },
 	row: {
@@ -120,13 +130,15 @@ const styles = StyleSheet.create({
 		justifyContent: 'space-between',
 		marginTop: 8,
 	},
-	link: { color: '#0a84ff', marginTop: 6, fontSize: 15, textDecorationLine: 'underline' },
+	link: { color: color.blue, marginTop: 6, fontSize: 15, textDecorationLine: 'underline' },
 	error: { color: 'crimson', marginTop: 6 },
 	hoursBox: {
 		marginTop: 6,
-		borderWidth: 1,
+		borderWidth: 0.5,
+		borderColor: color.blue,
 		borderRadius: 8,
 		padding: 10,
+		backgroundColor: color.lightblue,
 	},
 	sectionTitle: {
 		fontWeight: '600',
