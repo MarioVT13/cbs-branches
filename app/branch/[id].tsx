@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import {
 	View,
@@ -10,7 +10,7 @@ import {
 	Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE, LatLng, Region } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
 import { fetchBranches } from '@/api/branches';
 import { fetchATMs } from '@/api/atms';
@@ -31,9 +31,56 @@ function kmBetween(a: { lat: number; lon: number }, b: { lat: number; lon: numbe
 	return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+function regionForCoords(
+	coords: LatLng[],
+	opts?: { paddingFactor?: number; minDelta?: number; maxDelta?: number },
+): Region {
+	const paddingFactor = opts?.paddingFactor ?? 1.3;
+	const minDelta = opts?.minDelta ?? 0.02;
+	const maxDelta = opts?.maxDelta ?? 8;
+
+	if (coords.length === 1) {
+		return {
+			latitude: coords[0].latitude,
+			longitude: coords[0].longitude,
+			latitudeDelta: minDelta,
+			longitudeDelta: minDelta,
+		};
+	}
+
+	let minLat = Infinity,
+		maxLat = -Infinity,
+		minLon = Infinity,
+		maxLon = -Infinity;
+
+	for (const c of coords) {
+		minLat = Math.min(minLat, c.latitude);
+		maxLat = Math.max(maxLat, c.latitude);
+		minLon = Math.min(minLon, c.longitude);
+		maxLon = Math.max(maxLon, c.longitude);
+	}
+
+	const centerLat = (minLat + maxLat) / 2;
+	const centerLon = (minLon + maxLon) / 2;
+	let latDelta = (maxLat - minLat) * paddingFactor;
+	let lonDelta = (maxLon - minLon) * paddingFactor;
+
+	latDelta = Math.min(Math.max(latDelta, minDelta), maxDelta);
+	lonDelta = Math.min(Math.max(lonDelta, minDelta), maxDelta);
+
+	return {
+		latitude: centerLat,
+		longitude: centerLon,
+		latitudeDelta: latDelta,
+		longitudeDelta: lonDelta,
+	};
+}
+
 export default function BranchDetailsScreen() {
 	const { id } = useLocalSearchParams<{ id: string }>();
-	const [showATMs, setShowATMs] = React.useState(false);
+	const [showATMs, setShowATMs] = useState(false);
+	const [radiusKm] = useState(15); // single source of truth for radius
+	const mapRef = useRef<MapView>(null);
 
 	const {
 		data: branches,
@@ -46,13 +93,12 @@ export default function BranchDetailsScreen() {
 
 	const branch = useMemo(() => branches?.find((b) => b.id === id), [branches, id]);
 
-	// Typed query (v5: use gcTime instead of cacheTime)
 	const atmsQuery = useQuery<ATMsPayload>({
 		queryKey: ['atms'],
 		queryFn: fetchATMs,
-		enabled: showATMs,
-		staleTime: 10 * 60 * 1000, // 10 min
-		gcTime: 30 * 60 * 1000, // keep cached data around
+		enabled: showATMs, // only fetch when toggled on
+		staleTime: 10 * 60 * 1000,
+		gcTime: 30 * 60 * 1000,
 		refetchOnMount: false,
 		refetchOnWindowFocus: false,
 	});
@@ -60,11 +106,12 @@ export default function BranchDetailsScreen() {
 	if (isLoading) return <Loading />;
 	if (isError || !branch) return <ErrorView />;
 
-	const region = {
+	// friendlier default zoom for branch-only view
+	const branchRegion: Region = {
 		latitude: branch.lat,
 		longitude: branch.lon,
-		latitudeDelta: 0.02,
-		longitudeDelta: 0.02,
+		latitudeDelta: 0.05, // was 0.02; zoomed out just a bit
+		longitudeDelta: 0.05,
 	};
 
 	type ATM = ATMsPayload['atms'][number];
@@ -77,17 +124,57 @@ export default function BranchDetailsScreen() {
 					kmBetween(
 						{ lat: branch.lat, lon: branch.lon },
 						{ lat: atm.lat, lon: atm.lon },
-					) <= 15,
+					) <= radiusKm,
 			);
 
 		if (__DEV__) {
-			console.log(
-				`[atms] nearby for branch ${branch.id}: ${filtered.length} items`,
-				filtered.slice(0, 5).map((atm) => ({ id: atm.id, lat: atm.lat, lon: atm.lon })),
-			);
+			const distances = filtered
+				.map((atm) => ({
+					id: atm.id,
+					d: kmBetween(
+						{ lat: branch.lat, lon: branch.lon },
+						{ lat: atm.lat, lon: atm.lon },
+					),
+				}))
+				.sort((a, b) => a.d - b.d)
+				.slice(0, 3);
+			console.log(`[atms] ${filtered.length} within ${radiusKm}km. nearest=`, distances);
 		}
 		return filtered;
-	}, [atmsQuery.data?.atms, branch.id, branch.lat, branch.lon]);
+	}, [atmsQuery.data?.atms, branch.id, branch.lat, branch.lon, radiusKm]);
+
+	// camera logic - only adjust when we have the data we need
+	useEffect(() => {
+		const map = mapRef.current;
+		if (!map) return;
+
+		if (!showATMs) {
+			// toggle OFF → go to a comfortable branch-only region
+			map.animateToRegion(branchRegion, 350);
+			return;
+		}
+
+		// toggle ON but data not ready yet → do not change zoom (prevents the “zoom into 1 point” feel)
+		if (!atmsQuery.isFetched) return;
+
+		// data is ready:
+		if (nearbyATMs.length > 0) {
+			const coords: LatLng[] = [
+				{ latitude: branch.lat, longitude: branch.lon },
+				...nearbyATMs.map((a) => ({ latitude: a.lat, longitude: a.lon })),
+			];
+			const region = regionForCoords(coords, {
+				paddingFactor: 1.4,
+				minDelta: 0.02,
+				maxDelta: 6,
+			});
+			// give it a tick to ensure markers are mounted before animating
+			requestAnimationFrame(() => map.animateToRegion(region, 450));
+		} else {
+			// no ATMs in range: keep a mid zoom on the branch (don’t zoom all the way in)
+			map.animateToRegion(branchRegion, 350);
+		}
+	}, [showATMs, atmsQuery.isFetched, nearbyATMs.length, branchRegion]);
 
 	const hoursItems = useMemo(
 		() =>
@@ -129,7 +216,7 @@ export default function BranchDetailsScreen() {
 				</Text>
 
 				<View style={styles.row}>
-					<Text>Show ATMs</Text>
+					<Text>Show ATMs (≤ {radiusKm} km)</Text>
 					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
 						{showATMs && atmsQuery.isFetching ? <ActivityIndicator /> : null}
 						<Switch
@@ -142,7 +229,6 @@ export default function BranchDetailsScreen() {
 					</View>
 				</View>
 
-				{/* Status line */}
 				{showATMs && (
 					<>
 						{atmsQuery.isLoading || atmsQuery.isFetching ? (
@@ -159,12 +245,12 @@ export default function BranchDetailsScreen() {
 						) : atmsQuery.isFetched ? (
 							nearbyATMs.length === 0 ? (
 								<Text style={{ marginTop: 6, opacity: 0.7 }}>
-									No ATMs within 15 km of this branch.
+									No ATMs within {radiusKm} km of this branch.
 								</Text>
 							) : (
 								<Text style={{ marginTop: 6, opacity: 0.7 }}>
-									{nearbyATMs.length} ATM{nearbyATMs.length > 1 ? 's' : ''} within
-									15 km.
+									{nearbyATMs.length} ATM{nearbyATMs.length > 1 ? 's' : ''} within{' '}
+									{radiusKm} km.
 								</Text>
 							)
 						) : null}
@@ -173,9 +259,10 @@ export default function BranchDetailsScreen() {
 			</View>
 
 			<MapView
+				ref={mapRef}
 				key={showATMs ? 'map-atms-on' : 'map-atms-off'}
 				style={{ flex: 1 }}
-				initialRegion={region}
+				initialRegion={branchRegion}
 				provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
 			>
 				<Marker
@@ -183,6 +270,7 @@ export default function BranchDetailsScreen() {
 					coordinate={{ latitude: branch.lat, longitude: branch.lon }}
 					title={branch.name}
 					tracksViewChanges={false}
+					pinColor="#007aff"
 				/>
 
 				{showATMs &&
@@ -192,6 +280,7 @@ export default function BranchDetailsScreen() {
 							coordinate={{ latitude: atm.lat, longitude: atm.lon }}
 							title={atm.label ?? 'ATM'}
 							tracksViewChanges={false}
+							pinColor="#34c759"
 						/>
 					))}
 			</MapView>
@@ -226,10 +315,6 @@ const styles = StyleSheet.create({
 		fontWeight: '600',
 		marginBottom: 6,
 	},
-	hoursScroll: {
-		maxHeight: 150,
-	},
-	hoursItem: {
-		paddingVertical: 2,
-	},
+	hoursScroll: { maxHeight: 150 },
+	hoursItem: { paddingVertical: 2 },
 });
