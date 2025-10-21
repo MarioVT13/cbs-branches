@@ -30,6 +30,7 @@ npm install
 
 Create a dev build (required for react-native-maps)
 npx expo prebuild -p ios,android
+
 npx expo run:android
 
 ### or

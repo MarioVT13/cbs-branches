@@ -1,8 +1,16 @@
 import React, { useMemo } from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { View, Text, StyleSheet, Switch, ActivityIndicator, ScrollView } from 'react-native'; // NEW: ActivityIndicator
+import {
+	View,
+	Text,
+	StyleSheet,
+	Switch,
+	ActivityIndicator,
+	ScrollView,
+	Platform,
+} from 'react-native'; // NEW: ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useQuery } from '@tanstack/react-query';
 import { fetchBranches } from '@/api/branches';
 import { fetchATMs } from '@/api/atms';
@@ -99,7 +107,11 @@ export default function BranchDetailsScreen() {
 				{showATMs && atmsQuery.isError ? <Text style={styles.error}>{ATMsErr}</Text> : null}
 			</View>
 
-			<MapView style={{ flex: 1 }} initialRegion={region}>
+			<MapView
+				style={{ flex: 1 }}
+				initialRegion={region}
+				provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+			>
 				<Marker
 					coordinate={{ latitude: branch.lat, longitude: branch.lon }}
 					title={branch.name}
