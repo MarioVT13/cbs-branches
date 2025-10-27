@@ -2,6 +2,8 @@
 
 A minimal, production-minded demo that lists bank branches and shows details with an embedded map. Optional toggle to display ATMs on the same map.
 
+License: MIT © 2025 Mario Vatkov (MarioVT13 - github)
+
 ## Quick Links
 
 Branches: GET https://europe-west1-proto-rn-frbs-4242.cloudfunctions.net/dev_task/branches
